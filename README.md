@@ -4,3 +4,21 @@ Reproduction of the NVLM-D Multimodal Large Language Model Code
 [NVLM-D 论文地址](https://arxiv.org/abs/2409.11402)
 
 NVLM-D最近看论文觉得效果还不错的样子，但官方没有训练代码，就自己看着写了一下训练的代码，使用trainer进行复现。
+
+
+- 图片数据处理成token的逻辑
+```
+def convert_image_token(image):
+    if dynamic_image_size:
+        image = Image.open(image).convert('RGB')
+        num_tile = len(dynamic_preprocess(image))
+        tile_pos_identifiers = [f"<tile_{i}>" for i in range(1, num_tile)] + ["<tile_global_thumbnail>"]
+        image_tokens = ''
+        for tile_pos_identifier in tile_pos_identifiers:
+            image_tokens += tile_pos_identifier + IMG_CONTEXT_TOKEN * num_image_token
+        image_tokens = IMG_START_TOKEN + image_tokens + IMG_END_TOKEN
+    else:
+        image_tokens = "<tile_global_thumbnail>" + IMG_CONTEXT_TOKEN * num_image_token
+        image_tokens = IMG_START_TOKEN + image_tokens + IMG_END_TOKEN
+    return image_tokens
+```
