@@ -1,7 +1,6 @@
 
 # deepspeed --master_addr 172.xxxx.94 --master_port 5050 --include localhost:2,3,4,5,6,7  /VisualModel_Sft.py
 import os
-os.chdir('/workspace/Xuxiangjun/Nlp_2024/Visual_Model/')
 
 import torch
 from datasets import load_dataset
