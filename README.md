@@ -6,8 +6,15 @@ Reproduction of the NVLM-D Multimodal Large Language Model Code
 NVLM-D最近看论文觉得效果还不错的样子，但官方没有训练代码，就自己看着写了一下训练的代码，使用trainer进行复现。
 
 
-- 图片数据处理成token的逻辑
+
+- **图片数据处理成token的逻辑**
 ```
+IMG_START_TOKEN = '<|vision_start|>'
+IMG_CONTEXT_TOKEN = '<|vision_pad|>'
+IMG_END_TOKEN = '<|vision_end|>'
+
+num_image_token = int((force_image_size // patch_size) ** 2 * (down_sample_ratio ** 2))
+
 def convert_image_token(image):
     if dynamic_image_size:
         image = Image.open(image).convert('RGB')
@@ -18,7 +25,7 @@ def convert_image_token(image):
             image_tokens += tile_pos_identifier + IMG_CONTEXT_TOKEN * num_image_token
         image_tokens = IMG_START_TOKEN + image_tokens + IMG_END_TOKEN
     else:
-        image_tokens = "<tile_global_thumbnail>" + IMG_CONTEXT_TOKEN * num_image_token
+        image_tokens = IMG_CONTEXT_TOKEN * num_image_token
         image_tokens = IMG_START_TOKEN + image_tokens + IMG_END_TOKEN
     return image_tokens
 ```
