@@ -5,12 +5,14 @@
 
 import warnings
 from typing import Any, List, Optional, Tuple, Union
-
 import torch.utils.checkpoint
 import transformers
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from transformers import GenerationConfig, Qwen2ForCausalLM
+#from liger_kernel.transformers import LigerCrossEntropyLoss as CrossEntropyLoss
+from transformers import GenerationConfig
+from transformers import Qwen2ForCausalLM
+from peft import LoraConfig, get_peft_model
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import ModelOutput, logging
@@ -49,6 +51,7 @@ class WiNVLM_Model(PreTrainedModel):
         patch_size = config.vision_config.patch_size
         self.patch_size = patch_size
         self.select_layer = config.select_layer
+        self.llm_arch_name = config.llm_config.architectures[0]
         self.template = config.template
         self.num_image_token = int((image_size // patch_size) ** 2 * (config.downsample_ratio ** 2))
         self.downsample_ratio = config.downsample_ratio
@@ -68,6 +71,7 @@ class WiNVLM_Model(PreTrainedModel):
         else:
             if config.llm_config.architectures[0] == 'Qwen2ForCausalLM':
                 self.language_model = Qwen2ForCausalLM(config.llm_config)
+                #self.language_model = AutoLigerKernelForCausalLM(config.llm_config)
             else:
                 raise NotImplementedError(f'{config.llm_config.architectures[0]} is not implemented.')
 
@@ -85,6 +89,40 @@ class WiNVLM_Model(PreTrainedModel):
         self.img_context_token_id = None
         self.conv_template = get_conv_template(self.template)
         self.system_message = self.conv_template.system_message
+        
+        if config.use_backbone_lora:
+            self.wrap_backbone_lora(r=config.use_backbone_lora, lora_alpha=2 * config.use_backbone_lora)
+            
+        if config.use_llm_lora:
+            self.wrap_llm_lora(r=config.use_llm_lora, lora_alpha=2 * config.use_llm_lora)
+            
+    def wrap_backbone_lora(self, r=128, lora_alpha=256, lora_dropout=0.05):
+        lora_config = LoraConfig(
+            r=r,
+            target_modules=['attn.qkv', 'attn.proj', 'mlp.fc1', 'mlp.fc2'],
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+        )
+        self.vision_model = get_peft_model(self.vision_model, lora_config)
+        self.vision_model.print_trainable_parameters() 
+        
+    def wrap_llm_lora(self, r=128, lora_alpha=256, lora_dropout=0.05):
+        # Determine the target modules based on the architecture of the language model
+        if self.llm_arch_name in ['Qwen2ForCausalLM', 'LlamaForCausalLM']:
+            target_modules = ['self_attn.q_proj', 'self_attn.k_proj', 'self_attn.v_proj', 'self_attn.o_proj',
+                              'mlp.gate_proj', 'mlp.down_proj', 'mlp.up_proj']
+        else:
+            raise NotImplemented
+        lora_config = LoraConfig(
+            r=r,
+            target_modules=target_modules,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            task_type='CAUSAL_LM'
+        )
+        self.language_model = get_peft_model(self.language_model, lora_config)
+        self.language_model.enable_input_require_grads()
+        self.language_model.print_trainable_parameters()
 
     def forward(
             self,
