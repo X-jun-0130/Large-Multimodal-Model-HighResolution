@@ -32,3 +32,7 @@ def convert_image_token(image):
         image_tokens = IMG_START_TOKEN + image_tokens + IMG_END_TOKEN
     return image_tokens
 ```
+
+### Lora训练
+
+增加lora训练过程，VisualModel_SFT_Pretrain_Lora.py，这部分的代码可以进行第一阶段或者第二阶段的lora训练，能有效减少显存。
